@@ -9,7 +9,6 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3E%3Ccircle cx='15' cy='15' r='13' fill='%230A1120' stroke='%23E9B44C' stroke-width='2.5'/%3E%3Cellipse cx='15' cy='15' rx='6' ry='13' fill='none' stroke='%23E9B44C' stroke-width='2'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Instrument+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: app shell — sticky night globe on the left, passport pages (tabs) on the right; stacks on phones */
@@ -269,23 +268,7 @@ button.chip:hover{border-color:var(--muted)}
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
 /* ---------- detail: map + places ---------- */
-#map{position:absolute;inset:0;z-index:2;background:var(--ink)}
-.stage.mapmode .stars,.stage.mapmode #globe,.stage.mapmode .legend,.stage.mapmode .stage-title,.stage.mapmode .zoom,.stage.mapmode .hint{visibility:hidden}
-.modes{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:5;display:flex;background:color-mix(in srgb,var(--ink) 80%,transparent);border:1px solid var(--line);border-radius:999px;padding:3px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.modes button{border:0;background:transparent;color:var(--muted);font-weight:600;font-size:13px;padding:6px 14px;border-radius:999px}
-.modes button[aria-pressed="true"]{background:var(--fg);color:var(--ink)}
-.stage.mapmode .modes{left:auto;right:12px;transform:none}
 .ccard{z-index:6}
-@media (max-width:560px){.modes{top:auto;bottom:10px;left:10px;transform:none}.stage-title{display:none}}
-.leaflet-container{background:#0B1530;font-family:var(--f-body)}
-.leaflet-control-zoom a{background:var(--cover)!important;color:var(--fg)!important;border-color:var(--line)!important}
-.leaflet-control-attribution{background:rgba(10,17,32,.75)!important;color:var(--muted)!important;font-size:10px}
-.leaflet-control-attribution a{color:var(--muted)!important}
-.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--cover);color:var(--fg);border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.5)}
-.leaflet-popup-content{margin:12px 14px;font-size:13.5px;min-width:210px}
-.leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
-.leaflet-tooltip{background:var(--fg);color:var(--ink);border:0;font-weight:600;font-size:12px;box-shadow:none}
-.leaflet-tooltip::before{display:none}
 .pin-form{display:grid;gap:8px}
 .pin-form b{font-family:var(--f-display);font-size:18px;letter-spacing:.03em}
 .pin-form input{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--fg);font-size:14px;width:100%}
@@ -376,12 +359,7 @@ body.locked{overflow:hidden}
       <button type="button" id="zhome" aria-label="Torna a casa" title="Torna a casa"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 2 7v7h4v-4h4v4h4V7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
     </div>
     <div class="tip" id="tip" hidden></div>
-    <div class="hint" id="hint">Trascina per ruotare · tocca un paese o un punto</div>
-    <div id="map" hidden></div>
-    <div class="modes" role="group" aria-label="Vista">
-      <button type="button" data-stage="globe" aria-pressed="true">Globo</button>
-      <button type="button" data-stage="map" aria-pressed="false">Mappa dettagliata</button>
-    </div>
+    <div class="hint" id="hint">Trascina per ruotare · avvicina e tocca un punto per segnarlo</div>
     <div class="ccard" id="ccard" hidden></div>
   </section>
 
@@ -474,7 +452,6 @@ body.locked{overflow:hidden}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 "use strict";
 /* ================= DATA ================= */
@@ -862,74 +839,29 @@ function selectSpot(c, fly=true){
   renderCard(); if(MAP && stageMode==="map") renderMapLayers();
 }
 
-/* ================= MAPPA DETTAGLIATA ================= */
-let MAP=null, mapCountries=null, mapSpots=null, stageMode="globe";
-function countryStyle(f){
-  const st=placesOf(mine())[f.a2]?.s;
-  if(st==="v") return {stroke:false, fillColor:COL.gold, fillOpacity:.2};
-  if(st==="w") return {color:COL.sea, weight:1.2, dashArray:"4 4", fillColor:COL.sea, fillOpacity:.05};
-  return {stroke:false, fillOpacity:0};
-}
-function initMap(){
-  const h=COUNTRY[mine().home||"IT"];
-  MAP=L.map("map",{worldCopyJump:true, minZoom:2}).setView([h.lat,h.lon],5);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{subdomains:"abcd",maxZoom:19,
-    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>'}).addTo(MAP);
-  mapCountries=L.geoJSON({type:"FeatureCollection",features},{style:countryStyle, interactive:false}).addTo(MAP);
-  mapSpots=L.layerGroup().addTo(MAP);
-  MAP.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
-  MAP.on("click",onMapClick);
-}
-function renderMapLayers(){
-  if(!MAP) return;
-  mapCountries.setStyle(countryStyle);
-  mapSpots.clearLayers();
-  for(const p of spotList(mine())){
-    const v=p.s==="v";
-    const m=L.circleMarker([p.la,p.lo],{radius:v?7:6,color:"#0A1120",weight:2,fillColor:v?COL.gold:COL.sea,fillOpacity:1});
-    m.bindTooltip(p.n,{direction:"top",offset:[0,-6]});
-    m.on("click",e=>{ L.DomEvent.stopPropagation(e); selectSpot(p,false); });
-    mapSpots.addLayer(m);
-  }
-  if(S.spot && !spotsOf(mine())[S.spot.id]){
-    mapSpots.addLayer(L.circleMarker([S.spot.la,S.spot.lo],{radius:10,color:COL.fg,weight:2,fillOpacity:0,dashArray:"3 3",interactive:false}));
-  }
-}
-function setStage(m){
-  if(m==="map" && !window.L){ toast("La mappa non si è caricata: controlla la connessione"); m="globe"; }
-  stageMode=m;
-  document.querySelectorAll(".modes button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.stage===m));
-  $("stage").classList.toggle("mapmode",m==="map"); $("map").hidden = m!=="map";
-  if(m==="map"){
-    if(!MAP) initMap(); else MAP.invalidateSize();
-    setTimeout(()=>MAP.invalidateSize(),60);
-    if(S.spot) MAP.setView([S.spot.la,S.spot.lo], Math.max(MAP.getZoom(),12));
-    else if(S.selected && COUNTRY[S.selected]) MAP.setView([COUNTRY[S.selected].lat,COUNTRY[S.selected].lon], 5);
-    renderMapLayers();
-    $("tip").hidden=true;
-  }
-  renderCard();
-}
-document.querySelectorAll(".modes button").forEach(b=>b.onclick=()=>setStage(b.dataset.stage));
-async function onMapClick(e){
-  if(!S.me){ showAuth("login"); return; }
+/* ================= PUNTO PRECISO SUL GLOBO ================= */
+const MAP=null, stageMode="globe";
+function renderMapLayers(){}
+let pinLL=null; // ultimo punto toccato sul globo, [lon,lat]
+async function renderPinCard(){
+  const el=$("ccard"), ll=pinLL; if(!ll) return;
+  const cand={id:"p"+Date.now().toString(36), n:"", la:+ll[1].toFixed(5), lo:+ll[0].toFixed(5), cc:countryAtLL(ll[0],ll[1]), r:"", k:"p"};
+  el.innerHTML=`<div class="ccard-head"><div style="min-width:0"><h3>Nuovo luogo</h3>
+      <div class="meta">${cand.la.toFixed(3)}, ${cand.lo.toFixed(3)}${cand.cc&&COUNTRY[cand.cc]?" · "+esc(COUNTRY[cand.cc].name):""}</div></div>
+      <button class="x" id="cc-x" aria-label="Chiudi">×</button></div>
+    <div class="pin-form"><input id="pin-n" placeholder="Nome del posto" aria-label="Nome del posto" maxlength="80"><span class="muted" id="pin-i">Cerco il nome…</span></div>
+    <div class="actions"><button class="btn gold" id="pin-v">Ci sono stato</button><button class="btn" id="pin-w">Voglio andarci</button></div>`;
+  el.hidden=false;
+  const inp=$("pin-n"), info=$("pin-i");
+  $("cc-x").onclick=()=>{ pinLL=null; select(null); };
+  const save=st=>{ const n=inp.value.trim(); if(!n){ info.textContent="Dai un nome al posto"; inp.focus(); return; } cand.n=n; pinLL=null; setSpot(cand,st); selectSpot(cand,false); };
+  $("pin-v").onclick=()=>save("v"); $("pin-w").onclick=()=>save("w");
+  inp.addEventListener("keydown",ev=>{ if(ev.key==="Enter") save("v"); });
   loadPlaces().catch(()=>{});
-  const ll=e.latlng.wrap(), lat=ll.lat, lng=ll.lng;
-  const cand={id:"p"+Date.now().toString(36), n:"", la:+lat.toFixed(5), lo:+lng.toFixed(5), cc:countryAtLL(lng,lat), r:"", k:"p"};
-  const box=document.createElement("div"); box.className="pin-form";
-  box.innerHTML=`<b>Nuovo luogo</b><input placeholder="Nome del posto" aria-label="Nome del posto" maxlength="80"><span class="muted">Cerco il nome…</span>
-    <div class="actions"><button class="btn small gold" type="button" data-s="v">Ci sono stato</button><button class="btn small" type="button" data-s="w">Voglio andarci</button></div>`;
-  const inp=box.querySelector("input"), info=box.querySelector(".muted");
-  L.DomEvent.disableClickPropagation(box);
-  const pop=L.popup({maxWidth:270}).setLatLng(e.latlng).setContent(box).openOn(MAP);
-  box.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>{
-    const n=inp.value.trim(); if(!n){ info.textContent="Dai un nome al posto"; inp.focus(); return; }
-    cand.n=n; MAP.closePopup(pop); setSpot(cand,b.dataset.s); selectSpot(cand,false);
-  });
-  inp.addEventListener("keydown",ev=>{ if(ev.key==="Enter") box.querySelector("[data-s=v]").click(); });
-  const g=await reverseGeocode(lat,lng);
+  const g=await reverseGeocode(cand.la,cand.lo);
+  if(pinLL!==ll) return;
   if(g){ if(!inp.value) inp.value=g.n||""; cand.r=g.r; if(g.cc) cand.cc=g.cc; if(g.k==="i"||g.k==="a") cand.k=g.k; info.textContent=g.where||""; }
-  else info.textContent = cand.cc&&COUNTRY[cand.cc] ? COUNTRY[cand.cc].name : "Scrivi tu il nome del posto";
+  else info.textContent = cand.cc&&COUNTRY[cand.cc] ? "Scrivi tu il nome del posto" : "Scrivi tu il nome del posto";
 }
 
 
@@ -1116,7 +1048,10 @@ const globe = (()=>{
       if(S.view==="next"){ const pi=pinHit(e.offsetX,e.offsetY); if(pi!==null){ focusRec(currentRecs[pi].d.n); down=null; return; } }
       const sid=spotHit(e.offsetX,e.offsetY);
       if(sid){ const sp=spotsOf(mine())[sid]; if(sp){ selectSpot(Object.assign({},sp,{id:sid}), false); down=null; return; } }
-      const a=hit(e.offsetX,e.offsetY); select(a, false);
+      const a=hit(e.offsetX,e.offsetY);
+      const ll=proj.invert([e.offsetX,e.offsetY]);
+      G.lastLL = (ll && !isNaN(ll[0]) && d3.geoDistance(ll,[-G.rot[0],-G.rot[1]])<Math.PI/2) ? ll : null;
+      select(a, false);
     }
     down=null; };
   cv.addEventListener("pointerup",up); cv.addEventListener("pointercancel",up);
@@ -1150,7 +1085,8 @@ function hideHint(){ const h=$("hint"); h.style.opacity=0; }
 
 /* ================= SELECTION CARD ================= */
 function select(a2, fly=true){
-  S.selected = a2 || null; S.spot=null;
+  S.selected = a2 || null; S.spot=null; pinLL=null;
+  if(fly) globe.lastLL=null;
   if(a2 && fly){ const c=COUNTRY[a2];
     if(stageMode==="map" && MAP) MAP.flyTo([c.lat,c.lon], c.small?9:5, {duration:reduced?0:1.2});
     else globe.flyTo(c.lon,c.lat, c.small?5:2.4); }
@@ -1168,7 +1104,7 @@ function renderSpotCard(){
       ${p?`<button class="btn small" id="cc-r">Togli</button>`:""}
       <label class="year">Anno <input id="cc-y" inputmode="numeric" maxlength="4" placeholder="2024" value="${p?.y||""}"></label>
     </div>
-    <div class="actions">${stageMode==="map"?"":`<button class="btn small" id="cc-map">Vedi sulla mappa dettagliata</button>`}
+    <div class="actions">
       ${c.cc&&COUNTRY[c.cc]?`<button class="btn small" id="cc-c">Apri ${esc(COUNTRY[c.cc].name)}</button>`:""}</div>`;
   el.hidden=false;
   const yv=()=>{ const v=parseInt($("cc-y")?.value,10); return v>=1940 && v<=2100 ? v : undefined; };
@@ -1177,11 +1113,11 @@ function renderSpotCard(){
   $("cc-w").onclick=()=>setSpot(c, p?.s==="w"?null:"w");
   if($("cc-r")) $("cc-r").onclick=()=>{ setSpot(c,null); };
   $("cc-y").onchange=()=>{ if(spotsOf(mine())[c.id]?.s==="v") setSpot(c,"v",yv()); };
-  if($("cc-map")) $("cc-map").onclick=()=>setStage("map");
   if($("cc-c")) $("cc-c").onclick=()=>select(c.cc);
 }
 async function renderCard(){
   const el=$("ccard"), a=S.selected;
+  if(pinLL) return;
   if(S.spot) return renderSpotCard();
   if(!a || !COUNTRY[a]){ el.hidden=true; return; }
   const c=COUNTRY[a], p=placesOf(mine())[a], who=visitorsOf(a).filter(id=>id!==S.me);
@@ -1198,6 +1134,7 @@ async function renderCard(){
       <label class="year">Anno <input id="cc-y" inputmode="numeric" maxlength="4" placeholder="2024" value="${yr}"></label>
     </div>`}
     ${(()=>{ const here=spotList(mine()).filter(x=>x.cc===a); return here.length?`<div class="chips">${here.slice(0,8).map(x=>`<button class="chip ${x.s==="v"?"gold":"sea"}" data-sp="${esc(x.id)}">${esc(x.n)}</button>`).join("")}${here.length>8?`<span class="chip">+${here.length-8}</span>`:""}</div>`:""; })()}
+    ${(globe.lastLL && globe.zoom>=3)?`<div class="actions"><button class="btn small sea" id="cc-pin">Segna il punto che ho toccato</button></div>`:""}
     ${ideas.length?`<div class="chips">${ideas.map(d=>`<button class="chip" data-idea="${esc(d.n)}">Idea: ${esc(d.n)}</button>`).join("")}</div>`:""}`;
   el.hidden=false;
   $("cc-x").onclick=()=>select(null);
@@ -1207,6 +1144,7 @@ async function renderCard(){
   if($("cc-r")) $("cc-r").onclick=()=>setPlace(a,null);
   if($("cc-y")) $("cc-y").onchange=()=>{ if(placesOf(mine())[a]?.s==="v") setPlace(a,"v",yv()); };
   el.querySelectorAll("[data-sp]").forEach(b=>b.onclick=()=>{ const sp=spotsOf(mine())[b.dataset.sp]; if(sp) selectSpot(Object.assign({},sp,{id:b.dataset.sp})); });
+  if($("cc-pin")) $("cc-pin").onclick=()=>{ if(!S.me){ showAuth("login"); return; } pinLL=globe.lastLL; renderPinCard(); };
   el.querySelectorAll("[data-idea]").forEach(b=>b.onclick=()=>{ switchView("next"); recsPromise.then(()=>focusRec(b.dataset.idea,true)); });
 }
 
@@ -1278,7 +1216,7 @@ async function renderMine(){
   const all=spotList(me), box=$("spots");
   $("spots-count").textContent = all.length ? `${sv.length} visitati · ${sw.length} desideri` : "";
   if(!all.length){
-    box.innerHTML=`<p class="empty" style="margin:0">Ancora nessun luogo. Cerca una città, un comune o un'isola qui sopra, oppure apri la <b>Mappa dettagliata</b> e tocca il punto esatto: una spiaggia, un rifugio, un ristorante.</p>`;
+    box.innerHTML=`<p class="empty" style="margin:0">Ancora nessun luogo. Cerca una città, un comune o un'isola qui sopra, oppure avvicina il globo, tocca il punto esatto e premi <b>Segna il punto che ho toccato</b>.</p>`;
   } else {
     const groups={}; all.forEach(p=>{ const k=p.cc||""; (groups[k]=groups[k]||[]).push(p); });
     const keys=Object.keys(groups).sort((x,y)=>groups[y].length-groups[x].length || (COUNTRY[x]?.name||"~").localeCompare(COUNTRY[y]?.name||"~","it"));
@@ -1325,9 +1263,8 @@ async function renderSearch(){
     ul.querySelectorAll("[data-pgo]").forEach(b=>b.onclick=()=>selectSpot(places[+b.dataset.pgo]));
     ul.querySelectorAll("[data-pv]").forEach(b=>b.onclick=()=>{ const c=places[+b.dataset.pv]; setSpot(c,"v"); selectSpot(c); });
     more.hidden=false;
-    more.innerHTML=`${note?`<span>${note}</span>`:`<span>Non è quello giusto?</span>`}<button class="btn small" type="button" id="q-online">Cerca «${esc(raw)}» online</button><span>oppure tocca il punto esatto sulla</span><button class="linkbtn" type="button" id="q-map">mappa dettagliata</button>`;
+    more.innerHTML=`${note?`<span>${note}</span>`:`<span>Non è quello giusto?</span>`}<button class="btn small" type="button" id="q-online">Cerca «${esc(raw)}» online</button><span>oppure avvicina il globo e tocca il punto esatto.</span>`;
     $("q-online").onclick=()=>runOnline(raw);
-    $("q-map").onclick=()=>{ setStage("map"); $("stage").scrollIntoView({behavior:reduced?"auto":"smooth",block:"start"}); toast("Tocca la mappa nel punto esatto"); };
   };
   if(q.length>=2 && !PL){
     note="Carico 135.000 luoghi…"; draw();
@@ -1345,7 +1282,7 @@ async function runOnline(raw){
     onlineRes=await searchOnline(raw);
     const sp=spotsOf(mine());
     on.innerHTML = onlineRes.length ? `<li style="background:transparent;border:0;padding:4px 2px"><span class="sub-h" style="margin:0">Risultati online</span></li>`+onlineRes.map((c,i)=>placeRow(c,i,"o",sp)).join("")
-      : `<li><span class="n empty">Nessun risultato online. Apri la mappa dettagliata e tocca il punto: puoi dargli tu il nome.</span></li>`;
+      : `<li><span class="n empty">Nessun risultato online. Avvicina il globo, tocca il punto e premi "Segna il punto che ho toccato".</span></li>`;
     on.querySelectorAll("[data-ogo]").forEach(b=>b.onclick=()=>selectSpot(onlineRes[+b.dataset.ogo]));
     on.querySelectorAll("[data-ov]").forEach(b=>b.onclick=()=>{ const c=onlineRes[+b.dataset.ov]; setSpot(c,"v"); selectSpot(c); runOnlineRefresh(); });
   }catch(e){ on.innerHTML=`<li><span class="n empty">La ricerca online non risponde. Riprova tra qualche secondo.</span></li>`; }
